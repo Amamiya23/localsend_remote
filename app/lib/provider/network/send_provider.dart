@@ -15,6 +15,7 @@ import 'package:localsend_app/model/cross_file.dart';
 import 'package:localsend_app/model/send_mode.dart';
 import 'package:localsend_app/model/state/send/send_session_state.dart';
 import 'package:localsend_app/model/state/send/sending_file.dart';
+import 'package:localsend_app/model/webrtc/ice_server_config.dart';
 import 'package:localsend_app/pages/home_page.dart';
 import 'package:localsend_app/pages/progress_page.dart';
 import 'package:localsend_app/pages/send_page.dart';
@@ -343,8 +344,16 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       return;
     }
 
+    final settings = ref.read(settingsProvider);
+    final iceServers = buildCurrentIceServers(
+      fallbackUrls: ref.read(signalingProvider).iceServers.expand((server) => server.urls).toList(),
+      currentUrls: ref.notifier(settingsProvider).getStunServers(),
+      turnUsername: settings.turnUsername,
+      turnCredential: settings.turnCredential,
+    );
+
     final controller = await connection.sendOffer(
-      stunServers: ref.read(signalingProvider).stunServers,
+      iceServers: iceServers.map((server) => server.toRust()).toList(),
       // ignore: experimental_member_use
       target: UuidValue.withValidation(signalingId),
       privateKey: ref.read(securityProvider).privateKey,
@@ -758,6 +767,16 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     state = state.updateSession(
       sessionId: sessionId,
       state: (s) => s?.copyWith(background: background),
+    );
+  }
+}
+
+extension on IceServerConfig {
+  rust_webrtc.IceServerConfig toRust() {
+    return rust_webrtc.IceServerConfig(
+      urls: urls,
+      username: username,
+      credential: credential,
     );
   }
 }

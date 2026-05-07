@@ -25,6 +25,22 @@ pub struct ProposingClientInfo {
     pub device_type: Option<DeviceType>,
 }
 
+pub struct IceServerConfig {
+    pub urls: Vec<String>,
+    pub username: Option<String>,
+    pub credential: Option<String>,
+}
+
+impl From<IceServerConfig> for localsend::webrtc::webrtc::IceServerConfig {
+    fn from(value: IceServerConfig) -> Self {
+        Self {
+            urls: value.urls,
+            username: value.username,
+            credential: value.credential,
+        }
+    }
+}
+
 impl ProposingClientInfo {
     fn sign(&self, signing_key: &SigningTokenKey) -> anyhow::Result<ClientInfoWithoutId> {
         Ok(ClientInfoWithoutId {
@@ -85,7 +101,7 @@ impl LsSignalingConnection {
 
     pub async fn send_offer(
         &self,
-        stun_servers: Vec<String>,
+        ice_servers: Vec<IceServerConfig>,
         target: Uuid,
         private_key: &str,
         expecting_public_key: Option<ExpectingPublicKey>,
@@ -110,10 +126,12 @@ impl LsSignalingConnection {
             None => None,
         };
 
+        let ice_servers = ice_servers.into_iter().map(Into::into).collect();
+
         tokio::spawn(async move {
             let result = localsend::webrtc::webrtc::send_offer(
                 &managed_connection,
-                stun_servers,
+                ice_servers,
                 target,
                 signing_key,
                 expecting_public_key,
@@ -164,7 +182,7 @@ impl LsSignalingConnection {
 
     pub async fn accept_offer(
         &self,
-        stun_servers: Vec<String>,
+        ice_servers: Vec<IceServerConfig>,
         offer: WsServerSdpMessage,
         private_key: &str,
         expecting_public_key: Option<ExpectingPublicKey>,
@@ -189,10 +207,12 @@ impl LsSignalingConnection {
             None => None,
         };
 
+        let ice_servers = ice_servers.into_iter().map(Into::into).collect();
+
         tokio::spawn(async move {
             let result = localsend::webrtc::webrtc::accept_offer(
                 &managed_connection,
-                stun_servers,
+                ice_servers,
                 &offer,
                 signing_key,
                 expecting_public_key,
